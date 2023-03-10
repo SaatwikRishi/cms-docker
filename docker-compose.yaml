@@ -1,0 +1,111 @@
+version: '3'
+services:
+# Required Services ( DB and REDIS )
+  redis:
+    image: redis:latest
+    restart: always
+    ports:
+      - 6379:6379
+
+  backend_db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: backend
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backend"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - 5432:5432
+    volumes:
+      - ./backend_db/data:/var/lib/postgresql/data
+
+  auth_db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: auth
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: auth
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - 5433:5432
+    volumes:
+      - ./auth_db/data:/var/lib/postgresql/data
+
+
+#Backend Services
+
+#Backend Server
+  backend:
+    container_name: backend
+    build: ../backend
+    restart: always
+    environment:
+      POSTGRES_USER: backend
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: backend
+      POSTGRES_HOST: backend_db
+      POSTGRES_PORT: 5432
+      AUTH_SERVICE_URL: http://auth:5000
+      PORT: 8000
+    ports: 
+      - 8000:8000
+
+#Auth Server
+  auth:
+    container_name: auth
+    build: ../auth
+    restart: always
+    environment:
+      POSTGRES_USER: auth
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: auth
+      POSTGRES_HOST: auth_db
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PORT: 5000
+    ports: 
+      - 5000:5000
+    depends_on:
+      - redis
+
+#Migrations
+
+#Backend Migration
+  backend_migration:
+    build:  
+      context: ../backend
+      dockerfile: Dockerfile.migration
+    environment:
+      POSTGRES_USER: backend
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: backend
+      POSTGRES_HOST: backend_db
+      POSTGRES_PORT: 5432
+    depends_on:
+      backend_db:
+        condition: service_healthy
+        
+#Auth Migration
+  auth_migration:
+    build:  
+      context: ../auth
+      dockerfile: Dockerfile.migration
+    environment:
+      POSTGRES_USER: auth
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: auth
+      POSTGRES_HOST: auth_db
+      POSTGRES_PORT: 5432
+    depends_on:
+      auth_db:
+        condition: service_healthy
+  
