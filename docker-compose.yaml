@@ -98,7 +98,7 @@ services:
   auth_migration:
     build:  
       context: ../auth
-      dockerfile: Dockerfile.migration
+      dockerfile: Dockerfile.Migration
     environment:
       POSTGRES_USER: auth
       POSTGRES_PASSWORD: password
